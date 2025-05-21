@@ -112,4 +112,10 @@ class LazyPDOConfig
     {
         return $this->options + $this->driverOptions;
     }
+
+    public function connect()
+    {
+        return new LazyPDO($this);
+    }
+
 }

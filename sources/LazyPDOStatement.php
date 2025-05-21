@@ -9,16 +9,18 @@ use ReturnTypeWillChange;
 
 class LazyPDOStatement extends PDOStatement
 {
-    private PDOStatement $realStatement;
-    private string $query;
+    private PDOStatement $pdo_statement;
     private LazyPDO $parent;
+    private LazyPDOStats $stats;
+
+    private string $query;
     private ?array $params = null;
 
-    public function __construct(PDOStatement $statement, string $query, LazyPDO $parent)
+    public function __construct(PDOStatement $statement, string $query, ?LazyPDOStats $stats)
     {
-        $this->realStatement = $statement;
+        $this->pdo_statement = $statement;
         $this->query = $query;
-        $this->parent = $parent;
+        $this->stats = $stats;
     }
 
     public function execute(?array $params = null): bool
@@ -27,11 +29,11 @@ class LazyPDOStatement extends PDOStatement
         $startTime = microtime(true);
 
         try {
-            $result = $this->realStatement->execute($params);
-            $this->parent->recordPreparedQuery($this->query, $params, $startTime);
+            $result = $this->pdo_statement->execute($params);
+            $this->stats->recordQuery('prepared', $this->query, $params, $startTime);
             return $result;
         } catch (PDOException $e) {
-            $this->parent->recordPreparedQuery($this->query, $params, $startTime, true);
+            $this->stats->recordQuery('prepared', $this->query, $params, $startTime, true);
             throw $e;
         }
     }
@@ -44,7 +46,7 @@ class LazyPDOStatement extends PDOStatement
     // Проксируем основные методы PDOStatement
     public function bindValue(int|string $param, mixed $value, int $type = PDO::PARAM_STR): bool
     {
-        return $this->realStatement->bindValue($param, $value, $type);
+        return $this->pdo_statement->bindValue($param, $value, $type);
     }
 
     public function bindParam(
@@ -54,12 +56,12 @@ class LazyPDOStatement extends PDOStatement
         int|null   $maxLength = 0,
         mixed      $driverOptions = null
     ): bool {
-        return $this->realStatement->bindParam($param, $var, $type, $maxLength, $driverOptions);
+        return $this->pdo_statement->bindParam($param, $var, $type, $maxLength, $driverOptions);
     }
 
     public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed
     {
-        return $this->realStatement->fetch($mode, $cursorOrientation, $cursorOffset);
+        return $this->pdo_statement->fetch($mode, $cursorOrientation, $cursorOffset);
     }
 
     #[ReturnTypeWillChange]
@@ -69,41 +71,41 @@ class LazyPDOStatement extends PDOStatement
         ...$args
     )
     {
-        return $this->realStatement->fetchAll($mode, ...$args);
+        return $this->pdo_statement->fetchAll($mode, ...$args);
     }
 
     public function fetchColumn(int $column = 0): mixed
     {
-        return $this->realStatement->fetchColumn($column);
+        return $this->pdo_statement->fetchColumn($column);
     }
 
     public function rowCount(): int
     {
-        return $this->realStatement->rowCount();
+        return $this->pdo_statement->rowCount();
     }
 
     public function errorCode(): ?string
     {
-        return $this->realStatement->errorCode() ?: null;
+        return $this->pdo_statement->errorCode() ?: null;
     }
 
     public function errorInfo(): array
     {
-        return $this->realStatement->errorInfo();
+        return $this->pdo_statement->errorInfo();
     }
 
     public function setFetchMode($mode, $className = null, ...$args):bool
     {
-        return $this->realStatement->setFetchMode($mode, ...$args);
+        return $this->pdo_statement->setFetchMode($mode, ...$args);
     }
 
     public function closeCursor(): bool
     {
-        return $this->realStatement->closeCursor();
+        return $this->pdo_statement->closeCursor();
     }
 
     public function debugDumpParams(): ?bool
     {
-        return $this->realStatement->debugDumpParams();
+        return $this->pdo_statement->debugDumpParams();
     }
 }

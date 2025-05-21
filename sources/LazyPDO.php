@@ -10,18 +10,12 @@ class LazyPDO extends PDO
 {
     private ?PDO $pdo_connector = null;
     private LazyPDOConfig $config;
+    private ?LazyPDOStats $stats = null;
 
     private string $dsn;
     private ?string $username;
     private ?string $password;
     private ?array $options;
-
-    // Статистика
-    private int $queryCount = 0;
-    private int $preparedQueryCount = 0;
-    private float $totalQueryTime = 0.0;
-    private array $queries = [];
-
 
     public function __construct(
         LazyPDOConfig $config,
@@ -32,6 +26,7 @@ class LazyPDO extends PDO
         $this->username = $config->getUsername();
         $this->password = $config->getPassword();
         $this->options = $config->getOptions() ?? [];
+        $this->stats = new LazyPDOStats();
     }
 
     private function initConnection(): void
@@ -74,84 +69,15 @@ class LazyPDO extends PDO
             return false;
         }
 
-        return new LazyPDOStatement($statement, $query, $this);
+        return new LazyPDOStatement($statement, $query, $this->stats);
     }
 
-    private function recordQuery(string $query, float $startTime, bool $isError = false): void
-    {
-        $endTime = microtime(true);
-        $duration = $endTime - $startTime;
-
-        $this->queryCount++;
-        $this->totalQueryTime += $duration;
-
-        $this->queries[] = [
-            'type' => 'query',
-            'query' => $query,
-            'params' => null,
-            'time' => $duration,
-            'timestamp' => $startTime,
-            'is_error' => $isError
-        ];
-    }
-
-    public function recordPreparedQuery(string $query, ?array $params, float $startTime, bool $isError = false): void
-    {
-        $endTime = microtime(true);
-        $duration = $endTime - $startTime;
-
-        $this->preparedQueryCount++;
-        $this->totalQueryTime += $duration;
-
-        $this->queries[] = [
-            'type' => 'prepared',
-            'query' => $query,
-            'params' => $params,
-            'time' => $duration,
-            'timestamp' => $startTime,
-            'is_error' => $isError
-        ];
-    }
-
-    // Методы для получения статистики
-
-    public function getQueryCount(): int
-    {
-        return $this->queryCount;
-    }
-
-    public function getPreparedQueryCount(): int
-    {
-        return $this->preparedQueryCount;
-    }
-
-    public function getTotalQueryCount(): int
-    {
-        return $this->queryCount + $this->preparedQueryCount;
-    }
-
-    public function getTotalQueryTime(): float
-    {
-        return $this->totalQueryTime;
-    }
-
-    public function getAverageQueryTime(): float
-    {
-        $total = $this->getTotalQueryCount();
-        return $total > 0 ? $this->totalQueryTime / $total : 0;
-    }
-
-    public function getQueries(): array
-    {
-        return $this->queries;
-    }
-
-    public function getLastQuery(): ?array
-    {
-        return $this->queries[count($this->queries) - 1] ?? null;
-    }
-
-    // Остальные методы PDO (аналогично предыдущей реализации)
+    /**
+     * @param $query
+     * @param int $fetchMode
+     * @param ...$fetchModeArgs
+     * @return PDOStatement|false
+     */
     public function query($query, $fetchMode = PDO::ATTR_DEFAULT_FETCH_MODE, ...$fetchModeArgs): PDOStatement|false
     {
         $this->ensureConnection();
@@ -165,38 +91,19 @@ class LazyPDO extends PDO
                 $result = $this->pdo_connector->query($query, $fetchMode, ...$fetchModeArgs);
             }
 
-            $this->recordQuery($query, $startTime);
+            $this->stats->recordQuery('query', $query, null, $startTime);
+
             return $result;
         } catch (PDOException $e) {
-            $this->recordQuery($query, $startTime, true);
+            $this->stats->recordQuery('query', $query, null, $startTime, true);
             throw $e;
         }
     }
 
-    public function beginTransaction(): bool
-    {
-        $this->ensureConnection();
-        return $this->pdo_connector->beginTransaction();
-    }
-
-    public function commit(): bool
-    {
-        $this->ensureConnection();
-        return $this->pdo_connector->commit();
-    }
-
-    public function errorCode(): ?string
-    {
-        $this->ensureConnection();
-        return $this->pdo_connector->errorCode() ?: null;
-    }
-
-    public function errorInfo(): array
-    {
-        $this->ensureConnection();
-        return $this->pdo_connector->errorInfo();
-    }
-
+    /**
+     * @param string $statement
+     * @return int|false
+     */
     public function exec(string $statement): int|false
     {
         $this->ensureConnection();
@@ -204,13 +111,51 @@ class LazyPDO extends PDO
 
         try {
             $result = $this->pdo_connector->exec($statement);
-            $this->recordQuery($statement, $startTime);
+            $this->stats->recordQuery('exec', $statement, null, $startTime);
             return $result;
         } catch (PDOException $e) {
-            $this->recordQuery($statement, $startTime, true);
+            $this->stats->recordQuery('exec', $statement, null, $startTime, true);
             throw $e;
         }
     }
+
+    /**
+     * @return bool
+     */
+    public function beginTransaction(): bool
+    {
+        $this->ensureConnection();
+        return $this->pdo_connector->beginTransaction();
+    }
+
+    /**
+     * @return bool
+     */
+    public function commit(): bool
+    {
+        $this->ensureConnection();
+        return $this->pdo_connector->commit();
+    }
+
+    /**
+     * @return string|null
+     */
+    public function errorCode(): ?string
+    {
+        $this->ensureConnection();
+        return $this->pdo_connector->errorCode() ?: null;
+    }
+
+    /**
+     * @return array
+     */
+    public function errorInfo(): array
+    {
+        $this->ensureConnection();
+        return $this->pdo_connector->errorInfo();
+    }
+
+
 
     public function getAttribute(int $attribute): mixed
     {
@@ -246,5 +191,10 @@ class LazyPDO extends PDO
     {
         $this->ensureConnection();
         return $this->pdo_connector->setAttribute($attribute, $value);
+    }
+
+    public function stats():LazyPDOStats
+    {
+        return $this->stats;
     }
 }
