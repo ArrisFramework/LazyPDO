@@ -1,0 +1,21 @@
+{
+    "name": "karelwintersky/arris.database.lazypdo",
+    "description": "Arris µFramework lazyPDO",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Karel Wintersky",
+            "email": "wombat@fontanka.ru"
+        }
+    ],
+    "require": {
+        "ext-pdo": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Arris\\Database\\": "sources"
+        }
+    }
+
+}
