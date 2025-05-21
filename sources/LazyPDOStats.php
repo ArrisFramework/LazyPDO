@@ -52,11 +52,13 @@ class LazyPDOStats
         return $this->totalQueryTime;
     }
 
-    public function getAverageQueryTime(): float
+    /*public function getAverageQueryTime(): float
     {
         $total = $this->getTotalQueryCount();
-        return $total > 0 ? $this->totalQueryTime / $total : 0;
-    }
+        $total = $total > 0 ? $this->totalQueryTime / $total : 0;
+        $total = round($total, 5);
+        return number_format($total, 5);
+    }*/
 
     public function getQueries(): array
     {
