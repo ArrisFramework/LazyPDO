@@ -4,8 +4,8 @@ namespace Arris\Database;
 
 class LazyPDOConfig
 {
-    private string $driver = 'mysql';
-    private string $host = 'localhost';
+    public string $driver = 'mysql';
+    public string $host = 'localhost';
     private ?string $port = '3306';
     private ?string $database;
 
@@ -23,6 +23,12 @@ class LazyPDOConfig
         $this->driver = $driver;
         $this->host = $host;
         $this->database = $dbname;
+    }
+
+    public function setDriver(?string $driver):self
+    {
+        $this->driver = $driver;
+        return $this;
     }
 
     public function setDatabase(?string $database):self

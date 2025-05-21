@@ -31,26 +31,30 @@ class LazyPDO extends PDO
 
     private function initConnection(): void
     {
-        if ($this->pdo_connector === null) {
-            $this->pdo_connector = new PDO(
-                $this->dsn,
-                $this->username,
-                $this->password,
-                $this->options
-            );
-
-            if ($this->config->charset) {
-                $sql_collate = "SET NAMES {$this->config->charset}";
-
-                if ($this->config->charset_collation) {
-                    $sql_collate .= " COLLATE {$this->config->charset_collation}";
-                }
-                $this->pdo_connector->exec($sql_collate);
-            }
-
-            $this->pdo_connector->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-            $this->pdo_connector->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+        if ($this->config->driver === 'sqlite') {
+            $dsl = \sprintf("sqlite:%s", realpath($this->config->host));
+            $this->pdo_connector = new PDO($dsl);
+            return;
         }
+
+        $this->pdo_connector = new PDO(
+            $this->dsn,
+            $this->username,
+            $this->password,
+            $this->options
+        );
+
+        if ($this->config->charset) {
+            $sql_collate = "SET NAMES {$this->config->charset}";
+
+            if ($this->config->charset_collation) {
+                $sql_collate .= " COLLATE {$this->config->charset_collation}";
+            }
+            $this->pdo_connector->exec($sql_collate);
+        }
+
+        $this->pdo_connector->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->pdo_connector->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
     }
 
     private function ensureConnection()
