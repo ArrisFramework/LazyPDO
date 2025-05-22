@@ -2,7 +2,7 @@
 
 namespace Arris\Database;
 
-class LazyPDOConfig
+class LazyPDOConfig implements LazyPDOConfigInterface
 {
     public string $driver = 'mysql';
     public string $host = 'localhost';
@@ -17,6 +17,17 @@ class LazyPDOConfig
 
     public ?string $charset = null;
     public ?string $charset_collation = null;
+
+    /*
+     * DEBUG OPTIONS
+     */
+
+    /**
+     * @var float|null ms
+     */
+    public ?float $slowQueryThreshold = 1.0;
+
+    public bool $collectBacktrace = true;
 
     public function __construct(string $driver = 'mysql', string $host = 'localhost', string $dbname = null)
     {
@@ -67,7 +78,7 @@ class LazyPDOConfig
         return $this;
     }
 
-    public function credentials(?string $username, ?string $password): self
+    public function setCredentials(?string $username, ?string $password): self
     {
         $this->username = $username;
         $this->password = $password;
@@ -80,12 +91,20 @@ class LazyPDOConfig
         return $this;
     }
 
+    /**
+     * @param int $option
+     * @param mixed $value
+     * @return $this
+     */
     public function driverOption(int $option, mixed $value): self
     {
         $this->driverOptions[$option] = $value;
         return $this;
     }
 
+    /**
+     * @return string
+     */
     public function getDsn(): string
     {
         $dsnParts = [
@@ -104,24 +123,47 @@ class LazyPDOConfig
         return $this->driver . ':' . implode(';', $dsnParts);
     }
 
+    /**
+     * @return string|null
+     */
     public function getUsername(): ?string
     {
         return $this->username;
     }
 
+    /**
+     * @return string|null
+     */
     public function getPassword(): ?string
     {
         return $this->password;
     }
 
+    /**
+     * @return array
+     */
     public function getOptions(): array
     {
         return $this->options + $this->driverOptions;
     }
 
+    /**
+     * @return LazyPDO
+     */
     public function connect()
     {
         return new LazyPDO($this);
+    }
+
+    /**
+     * @param mixed $value
+     * @param bool $as_ms
+     * @return $this
+     */
+    public function setSlowQueryThreshold(mixed $value, bool $as_ms = true):self
+    {
+        $this->slowQueryThreshold = $as_ms ? $value / 1000 : $value;
+        return $this;
     }
 
 }

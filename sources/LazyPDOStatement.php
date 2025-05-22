@@ -7,7 +7,7 @@ use PDOException;
 use PDOStatement;
 use ReturnTypeWillChange;
 
-class LazyPDOStatement extends PDOStatement
+class LazyPDOStatement extends PDOStatement implements LazyPDOStatementInterface
 {
     private PDOStatement $pdo_statement;
     private LazyPDO $parent;

@@ -6,11 +6,11 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
-class LazyPDO extends PDO
+class LazyPDO extends PDO implements LazyPDOInterface
 {
     private ?PDO $pdo_connector = null;
-    private LazyPDOConfig $config;
-    private ?LazyPDOStats $stats = null;
+    private ?LazyPDOConfig $config;
+    private ?LazyPDOStats $stats;
 
     private string $dsn;
     private ?string $username;
@@ -18,17 +18,21 @@ class LazyPDO extends PDO
     private ?array $options;
 
     public function __construct(
-        LazyPDOConfig $config,
-        array $options = []
+        LazyPDOConfig $config
     ) {
         $this->config = $config;
         $this->dsn = $config->getDsn();
         $this->username = $config->getUsername();
         $this->password = $config->getPassword();
         $this->options = $config->getOptions() ?? [];
-        $this->stats = new LazyPDOStats();
+        $this->stats = new LazyPDOStats($config);
     }
 
+    /**
+     * Real init connection
+     *
+     * @return void
+     */
     private function initConnection(): void
     {
         if ($this->config->driver === 'sqlite') {
@@ -57,6 +61,10 @@ class LazyPDO extends PDO
         $this->pdo_connector->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Check real connection
+     * @return void
+     */
     private function ensureConnection()
     {
         if (empty($this->pdo)) {
@@ -138,6 +146,7 @@ class LazyPDO extends PDO
     public function commit(): bool
     {
         $this->ensureConnection();
+        $this->stats->recordQuery('commit', '', null, microtime(true));
         return $this->pdo_connector->commit();
     }
 
@@ -158,8 +167,6 @@ class LazyPDO extends PDO
         $this->ensureConnection();
         return $this->pdo_connector->errorInfo();
     }
-
-
 
     public function getAttribute(int $attribute): mixed
     {

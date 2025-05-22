@@ -2,16 +2,29 @@
 
 namespace Arris\Database;
 
-class LazyPDOStats
+class LazyPDOStats implements LazyPDOStatsInterface
 {
+    private ?LazyPDOConfig $config;
+
     private int $queryCount = 0;
     private int $preparedQueryCount = 0;
     private float $totalQueryTime = 0.0;
     private array $queries = [];
+    private array $slowQueries = [];
+
+    private float $slowQueryThreshold;
+    private float $initTimestamp;
+
+    public function __construct(LazyPDOConfig $config)
+    {
+        $this->config = $config;
+        $this->slowQueryThreshold = $config->slowQueryThreshold;
+        $this->initTimestamp = microtime(true);
+    }
 
     public function recordQuery(string $type, string $query, ?array $params, float $startTime, bool $isError = false): void
     {
-        $endTime = microtime(true);
+        $endTime = microtime(true); // float in seconds
         $duration = $endTime - $startTime;
 
         if ($type === 'prepared') {
@@ -22,14 +35,37 @@ class LazyPDOStats
 
         $this->totalQueryTime += $duration;
 
-        $this->queries[] = [
-            'type' => $type,
-            'query' => $query,
-            'params' => $params,
-            'time' => $duration,
-            'timestamp' => $startTime,
-            'is_error' => $isError
+        $backtrace = [];
+
+        if ($this->config->collectBacktrace) {
+            $trace = debug_backtrace(limit: 2);
+            if (count($trace) > 1) {
+                $trace = $trace[1];
+            }
+
+            $backtrace = [
+                'file'      =>  $trace['file'] ?? __FILE__,
+                'line'      =>  $trace['line'] ?? __LINE__,
+                'function'  =>  $trace['function'] ?? __METHOD__
+            ];
+
+        }
+
+        $queryData = [
+            'state'     => $isError ? 'ERROR' : 'SUCCESS',
+            'type'      => $type,
+            'query'     => $query,
+            'params'    => $params ?? [],
+            'duration'  => $duration,
+            'timestamp' => $endTime - $this->initTimestamp,
+            'backtrace' => $backtrace
         ];
+        $this->queries[] = $queryData;
+
+        // Запись медленного запроса
+        if ($duration >= $this->slowQueryThreshold) {
+            $this->slowQueries[] = $queryData;
+        }
     }
 
     public function getQueryCount(): int
@@ -52,29 +88,29 @@ class LazyPDOStats
         return $this->totalQueryTime;
     }
 
-    /*public function getAverageQueryTime(): float
-    {
-        $total = $this->getTotalQueryCount();
-        $total = $total > 0 ? $this->totalQueryTime / $total : 0;
-        $total = round($total, 5);
-        return number_format($total, 5);
-    }*/
-
     public function getQueries(): array
     {
         return array_map(function ($row) {
-            return [
-                'query' => $row['query'],
-                'time' => number_format($row['time'], 8),
-                'timestamp' => $row['timestamp'],
-                'is_error' => $row['is_error']
-            ];
+            $row['duration'] = number_format($row['duration'], self::ROUND_PRECISION);
+            return $row;
         }, $this->queries);
+    }
+
+    public function getSlowQueries():array
+    {
+        return array_map(function ($row) {
+            $row['duration'] = number_format($row['duration'], self::ROUND_PRECISION);
+            return $row;
+        }, $this->slowQueries);
     }
 
     public function getLastQuery(): ?array
     {
-        return end($this->queries) ?: null;
+        $row = end($this->queries) ?: null;
+        if ($row && array_key_exists('duration', $row)) {
+            $row['duration'] = number_format($row['duration'], self::ROUND_PRECISION);
+        }
+        return $row;
     }
 
     public function reset(): void
@@ -83,5 +119,6 @@ class LazyPDOStats
         $this->preparedQueryCount = 0;
         $this->totalQueryTime = 0.0;
         $this->queries = [];
+        $this->slowQueries = [];
     }
 }
