@@ -52,3 +52,22 @@ echo "Всего подготовленных запросов: " . $pdo->stats(
 echo "Общее время запросов: " . $pdo->stats()->getTotalQueryTime() . " сек\n";
 
 ```
+
+```php
+
+$stats = $pdo->getStats();
+
+echo "Всего запросов: " . $stats->getTotalQueryCount() . "\n";
+echo "Медленных запросов: " . $stats->getSlowQueriesCount() . "\n";
+echo "Порог медленных запросов: " . $stats->getSlowQueryThreshold() . " сек\n";
+// Детальная информация о медленных запросах
+echo "Медленные запросы:\n";
+foreach ($stats->getSlowQueries() as $query) {
+    printf(
+        "Запрос: %s\nВремя: %.3f сек\nПараметры: %s\n\n",
+        $query['query'],
+        $query['time'],
+        json_encode($query['params'] ?? [])
+    );
+}
+```
